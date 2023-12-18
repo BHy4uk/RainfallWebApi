@@ -13,6 +13,9 @@ public class RainfallController : ControllerBase
     [HttpGet("id/{stationId}/readings")]
     public async Task<IActionResult> GetRainfallReadings(string stationId, [FromQuery] int count = 10)
     {
+        // Limit count to the range [1, 100]
+        count = Math.Max(1, Math.Min(count, 100));
+
         string rainfallApiUrl = $"{RainfallApiBaseUrl}{stationId}/readings?_limit={count}";
 
         using (HttpClient client = new HttpClient())
@@ -21,10 +24,24 @@ public class RainfallController : ControllerBase
             if (response.IsSuccessStatusCode)
             {
                 string responseBody = await response.Content.ReadAsStringAsync();
-                // Assuming the structure of the response is similar to RainfallApiResponse
-                var rainfallApiResponse = JsonConvert.DeserializeObject<RainfallReadingResponse>(responseBody);
+                var rainfallApiResponse = JsonConvert.DeserializeObject<RainfallApiResponse>(responseBody);
 
-                return Ok(rainfallApiResponse);
+                var rainfallReadingResponse = new RainfallReadingResponse
+                {
+                    Readings = rainfallApiResponse.Items
+                        .Select(item => new RainfallReading
+                        {
+                            DateMeasured = DateTime.Parse(item.DateTime),
+                            AmountMeasured = item.Value
+                        })
+                        .ToArray()
+                };
+
+                return Ok(rainfallReadingResponse);
+            }
+            else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
+            {
+                return BadRequest();
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
             {
