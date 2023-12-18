@@ -26,6 +26,22 @@ public class RainfallController : ControllerBase
                 string responseBody = await response.Content.ReadAsStringAsync();
                 var rainfallApiResponse = JsonConvert.DeserializeObject<RainfallApiResponse>(responseBody);
 
+                if (rainfallApiResponse.Items == null || rainfallApiResponse.Items.Count == 0)
+                {
+                    return NotFound(new ErrorResponse
+                    {
+                        Message = $"No readings found for the specified stationId: {stationId}",
+                        Detail = new[]
+                        {
+                            new ErrorDetail
+                            {
+                                PropertyName = "stationId",
+                                Message = $"The specified stationId '{stationId}' does not have any readings."
+                            }
+                        }
+                    });
+                }
+
                 var rainfallReadingResponse = new RainfallReadingResponse
                 {
                     Readings = rainfallApiResponse.Items
@@ -41,15 +57,24 @@ public class RainfallController : ControllerBase
             }
             else if (response.StatusCode == System.Net.HttpStatusCode.BadRequest)
             {
-                return BadRequest();
-            }
-            else if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
-            {
-                return NotFound();
+                var errorResponse = JsonConvert.DeserializeObject<ErrorResponse>(await response.Content.ReadAsStringAsync());
+                return BadRequest(errorResponse);
             }
             else
             {
-                return StatusCode(500, new ErrorResponse { Message = "Internal server error" });
+                var errorResponse = new ErrorResponse
+                {
+                    Message = "Internal server error",
+                    Detail = new[]
+                    {
+                        new ErrorDetail
+                        {
+                            PropertyName = "ServerError",
+                            Message = "An unexpected server error occurred."
+                        }
+                    }
+                };
+                return StatusCode(500, errorResponse);
             }
         }
     }
